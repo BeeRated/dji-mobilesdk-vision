@@ -13,10 +13,10 @@
 #import "OpenCVConversion.h"
 #import "DroneHelper.h"
 #ifdef __cplusplus
-  #include <vector>
-  #include <opencv2/imgproc/imgproc.hpp>
-  #include <opencv2/objdetect/objdetect.hpp>
-  #include <opencv2/video/tracking.hpp>
+#include <vector>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/objdetect/objdetect.hpp>
+#include <opencv2/video/tracking.hpp>
 #include "MagicInAir.h"
 using namespace std;
 #endif
@@ -67,7 +67,7 @@ using namespace std;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
+    
     // Do any additional setup after loading the view, typically from a nib.
     [self registerApp];
     self.viewProcessed.contentMode = UIViewContentModeScaleAspectFit;
@@ -76,7 +76,7 @@ using namespace std;
     UIImage *image = [UIImage imageNamed:@"mavic_air.jpg"];
     if(image != nil)
         self.viewProcessed.image = image;
-
+    
     self.myTimer=nil;
     
     // We define the default frame processing function (block)
@@ -96,10 +96,10 @@ using namespace std;
     };
     
     self.imgProcType = IMG_PROC_DEFAULT;
-
+    
     myFaceDetector = new SimpleFaceDetector("lbpcascade_frontalface");
     self.spark = [[DroneHelper alloc] init];
-
+    
 }
 
 - (void)viewWillDisappear:(BOOL)animated
@@ -255,12 +255,12 @@ using namespace std;
 {
     [[VideoPreviewer instance] snapshotPreview:self.processFrame];
     self.telemetry.text = [NSString stringWithFormat:@"h=%.2f\n\
-                                                       vx=%.2f\n\
-                                                       vy=%.2f\n\
-                                                       vz=%.2f\n\
-                                                       yaw=%.2f\n\
-                                                       pitch=%.2f\
-                                                       roll=%.2f",
+                           vx=%.2f\n\
+                           vy=%.2f\n\
+                           vz=%.2f\n\
+                           yaw=%.2f\n\
+                           pitch=%.2f\
+                           roll=%.2f",
                            self.spark.heightAboveHome,
                            self.spark.NEDVelocityX, self.spark.NEDVelocityY, self.spark.NEDVelocityZ,
                            self.spark.yaw, self.spark.pitch, self.spark.roll];
@@ -318,7 +318,7 @@ using namespace std;
                 return;
             }
             cv::resize(grayImg, grayImg, cv::Size(480, 360));
-
+            
             //TODO CMU: insert the image processing function call here
             //Implement the function in MagicInAir.mm.
             filterBlurHomogeneousAccelerated(grayImg, 21);
@@ -365,7 +365,8 @@ using namespace std;
 {
     // Not using here, just show how to use static variable
     static int counter= 0;
-
+    static int stage = 1;
+    
     if(self.imgProcType == IMG_PROC_USER_1)
     {
         self.imgProcType = IMG_PROC_DEFAULT;
@@ -409,48 +410,98 @@ using namespace std;
             std::vector<std::vector<cv::Point2f> > corners;
             std::vector<int> ids = detectARTagIDs(corners,grayImg);
             NSInteger n = ids.size();
-
+            
+            static int NUM_TAGS = 17;
+            
             // Implement your logic to decide where to move the drone
+            
             // Below snippet is an example of how you can calcualte the center of the marker
-//            cv::Point2f marker_center(0,0);
-//            bool tag_for_takeoff = FALSE;
-//            for(auto i=0;i<n;i++)
-//            {
-//                std::cout<<"\nID: "<<ids[i];
-//                // This function calculate the average marker center from all the detected tags
-//                marker_center = VectorAverage(corners[i]);
-//            }
+            cv::Point2f marker_center(240,180);
+            
+            map<int, Point2f> coords;
+            bool tag_for_takeoff = FALSE;
+            
+            map<int, cv::Point2f> image_vector;
+            map<int, cv::Point2f> motion_vector;
+            
+            coords.insert(pair<int, Point2f> (1, marker_center));
+            
+            Point2f imvec = marker_center - cv::Point2f(240,180);
+            
+            image_vector.insert(pair<int, Point2f> (1, imvec));
+            motion_vector.insert(pair<int, Point2f> (1, convertImageVectorToMotionVector(imvec)));
+            
+            for(auto i=0;i<n;i++)
+            {
+                std::cout<<"\nID: "<<ids[i];
+                // This function calculate the average marker center from all the detected tags
+                marker_center = VectorAverage(corners[i]);
+                coords.insert(pair<int, Point2f> (ids[i], marker_center));
+                
+                imvec = marker_center - cv::Point2f(240,180);
+                
+                image_vector.insert(pair<int, Point2f> (ids[i], imvec));
+                motion_vector.insert(pair<int, Point2f> (ids[i], convertImageVectorToMotionVector(imvec)));
+            }
             
             // Codes commented below show how to drive the drone to move to the direction
             // such that desired tag is in the center of image frame
             
-            // Calculate the image vector relative to the center of the image
-//            cv::Point2f image_vector = marker_center-cv::Point2f(240,180);
-            
-            // Convert vector from image coordinate to drone navigation coordinate
-//            cv::Point2f motion_vector = convertImageVectorToMotionVector(image_vector);
             
             // If there's no tag detected, no motion required
-//            if(n==0){
-//                motion_vector = cv::Point2f(0,0);
-//            }
+            
+            /*
+             
+             
+             */
+            
+            if(n == 0 || stage == NUM_TAGS){
+                //TODO: stop
+            }
+            
+            if (n == 1){
+                stage += 1;
+                
+                // TODO: go to the motion vector of the detected ID
+                // change yaw accordingly
+            }
+            
+            if (n > 1){
+                int largest = ids[0];
+                
+                // to get the largest consecutive ID
+                
+                // first get the ids which are >= current stage, then see if id + 1 is present
+                for (int i = 0; i < ids.size(); i++){
+                    if (ids[i] >= stage){
+                        if (ids[i + 1] == ids[i] + 1){
+                            largest = ids[i + 1];
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                stage = largest;
+                // TODO: go to motion vector of largest
+                // change yaw accordingly
+            }
             
             // Use MoveVxVyYawrateVz(...) or MoveVxVyYawrateHeight(...)
             // depending on the mode you choose at the beginning of this function
-//            if((image_vector.x*image_vector.x + image_vector.y*image_vector.y)<900)
-//                MoveVxVyYawrateVz(spark_ptr, motion_vector.x, motion_vector.y, 0, -0.2);
-//            else
-//                MoveVxVyYawrateVz(spark_ptr, motion_vector.x, motion_vector.y, 0, 0);
-
-//            std::cout<<"Moving By::"<<motion_vector<<"\n";
+            //            if((image_vector.x*image_vector.x + image_vector.y*image_vector.y)<900)
+            //                MoveVxVyYawrateVz(spark_ptr, motion_vector.x, motion_vector.y, 0, -0.2);
+            //            else
+            //                MoveVxVyYawrateVz(spark_ptr, motion_vector.x, motion_vector.y, 0, 0);
+            
+            //            std::cout<<"Moving By::"<<motion_vector<<"\n";
             
             // Move the camera to look down so you can see the tags
-            PitchGimbal(spark_ptr,-75.0);
+            PitchGimbal(spark_ptr,-45.0);
             
             // Sample function to help you control the drone
             // Such as takeoff and land
-//            TakeOff(spark_ptr);
-//            Land(spark_ptr);
+            //            TakeOff(spark_ptr);
+            //            Land(spark_ptr);
             
             // Convert opencv image back to iOS UIImage
             [self.viewProcessed setImage:[OpenCVConversion UIImageFromCVMat:grayImg]];
@@ -531,7 +582,7 @@ using namespace std;
         self.imgProcType = IMG_PROC_USER_2;
         [self.spark enterVirtualStickMode];
         [self.spark setVerticleModeToVelocity];
-
+        
         self.processFrame =
         ^(UIImage *frame){
             cv::Mat colorImg = [OpenCVConversion cvMatFromUIImage:frame];
@@ -567,7 +618,7 @@ using namespace std;
             }
         }];
     }
-
+    
     // Enter the virtual stick mode with some default settings
     DJIFlightController *fc = [self fetchFlightController];
     //fc.yawControlMode = DJIVirtualStickYawControlModeAngle;
@@ -583,7 +634,7 @@ using namespace std;
             NSLog(@"Enable VirtualStickControlMode Succeeded");
         }
     }];
-
+    
 }
 - (IBAction)doAR:(id)sender {
     
@@ -697,18 +748,18 @@ using namespace std;
             cv::Mat colorImg = [OpenCVConversion cvMatFromUIImage:frame];
             cv::cvtColor(colorImg, colorImg, CV_RGB2BGR);
             cv::Mat grayImg = [OpenCVConversion cvMatGrayFromUIImage:frame];
-
+            
             // Do your magic!!!
-                
-                
+            
+            
             // Hint how to overlay warped logo onto the original camera image
-//            cv::Mat gray,grayInv,src1Final,src2Final;
-//            cvtColor(logoWarped,gray,CV_BGR2GRAY);
-//            threshold(gray,gray,0,255,CV_THRESH_BINARY);
-//            bitwise_not(gray, grayInv);
-//            colorImg.copyTo(src1Final,grayInv);
-//            logoWarped.copyTo(src2Final,gray);
-//            colorImg = src1Final+src2Final;
+            //            cv::Mat gray,grayInv,src1Final,src2Final;
+            //            cvtColor(logoWarped,gray,CV_BGR2GRAY);
+            //            threshold(gray,gray,0,255,CV_THRESH_BINARY);
+            //            bitwise_not(gray, grayInv);
+            //            colorImg.copyTo(src1Final,grayInv);
+            //            logoWarped.copyTo(src2Final,gray);
+            //            colorImg = src1Final+src2Final;
             
             cv::cvtColor(colorImg, colorImg, CV_BGR2RGB);
             [self.viewProcessed setImage:[OpenCVConversion UIImageFromCVMat:colorImg]];
