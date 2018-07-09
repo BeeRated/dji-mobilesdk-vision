@@ -405,9 +405,16 @@ using namespace std;
             // Shrink the image for faster processing
             cv::resize(grayImg, grayImg, cv::Size(480, 360));
             
+//            cv::Mat I_filtered;
+//            cv::GaussianBlur(grayImg, I_filtered, cv::Size(0,0), 2);
+//            cv::addWeighted(grayImg, 2.5, I_filtered, -1.5, 0, I_filtered);
+//            cv::equalizeHist(I_filtered, I_filtered);
+//            cv::threshold(I_filtered, I_filtered, 240, 0, 3);
+            
             // Call detectARTagIDs to get Aruco tag IDs and corner pixel location
             std::vector<std::vector<cv::Point2f> > corners;
             std::vector<int> ids = detectARTagIDs(corners,grayImg);
+//            std::vector<int> ids = detectARTagIDs(corners,I_filtered);
             NSInteger n = ids.size();
 
             // Implement your logic to decide where to move the drone
@@ -445,7 +452,7 @@ using namespace std;
 //            std::cout<<"Moving By::"<<motion_vector<<"\n";
             
             // Move the camera to look down so you can see the tags
-            PitchGimbal(spark_ptr,-75.0);
+            PitchGimbal(spark_ptr,-45.0);
             
             // Sample function to help you control the drone
             // Such as takeoff and land
