@@ -18,7 +18,9 @@
 #include <opencv2/objdetect/objdetect.hpp>
 #include <opencv2/video/tracking.hpp>
 #include "MagicInAir.h"
+#include <chrono>
 using namespace std;
+using namespace std::chrono;
 #endif
 
 #define PHOTO_NUMBER 4
@@ -366,6 +368,12 @@ using namespace std;
     // Not using here, just show how to use static variable
     static int counter= 0;
     static int stage = 1;
+    static float last_error = 0;
+    static unsigned int last_time = 0;
+    static float PID_P = 1.2;
+    static float PID_D = 0.5;//0.1
+    static float PID_I = 0.0001;
+    
     
     if(self.imgProcType == IMG_PROC_USER_1)
     {
@@ -388,6 +396,7 @@ using namespace std;
         [self.spark setVerticleModeToAbsoluteHeight];
         
         self.imgProcType = IMG_PROC_USER_1;
+        last_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count(); //TODO
         
         // This is a timer callback function that will run repeatedly when button is clicked
         self.processFrame =
@@ -423,6 +432,7 @@ using namespace std;
             
             map<int, cv::Point2f> image_vector;
             map<int, cv::Point2f> motion_vector;
+            map<int, float> yaw_error_vector;
             
             coords.insert(pair<int, Point2f> (1, marker_center));
             
@@ -442,6 +452,7 @@ using namespace std;
                 
                 image_vector.insert(pair<int, Point2f> (ids[i], imvec));
                 motion_vector.insert(pair<int, Point2f> (ids[i], convertImageVectorToMotionVector(imvec)));
+                yaw_error_vector.insert(pair<int, float> (ids[i], -imvec.x));
             }
             
             // Codes commented below show how to drive the drone to move to the direction
@@ -457,13 +468,24 @@ using namespace std;
             
             if(n == 0 || stage == NUM_TAGS){
                 //TODO: stop
+                self.debug1.text = [NSString stringWithFormat:@"Finished!"];
             }
             
-            if (n == 1){
+            if (n == 1 && ids[0] == stage + 1){
                 stage += 1;
                 
                 // TODO: go to the motion vector of the detected ID
                 // change yaw accordingly
+                float error = yaw_error_vector[0];
+                unsigned int current_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                unsigned int delta_time = current_time - last_time;
+                float Pterm = PID_P * error;
+                float Dterm = PID_D * (error - last_error) / delta_time;
+                float yaw_output = Pterm + Dterm;
+                last_error = error;
+                last_time = current_time;
+                MoveVxVyYawrateVz(spark_ptr, motion_vector[stage].x, motion_vector[stage].y, yaw_output, 0);
+                self.debug1.text = [NSString stringWithFormat:@"Moving by %.2f, %.2f, %.2f.", motion_vector[stage].x, motion_vector[stage].y, yaw_output];
             }
             
             if (n > 1){
@@ -484,6 +506,17 @@ using namespace std;
                 stage = largest;
                 // TODO: go to motion vector of largest
                 // change yaw accordingly
+                float error = yaw_error_vector[stage];
+                unsigned int current_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                unsigned int delta_time = current_time - last_time;
+                float Pterm = PID_P * error;
+                float Dterm = PID_D * (error - last_error) / delta_time;
+                float yaw_output = Pterm + Dterm;
+                last_error = error;
+                last_time = current_time;
+                
+                MoveVxVyYawrateVz(spark_ptr, motion_vector[stage].x, motion_vector[stage].y, yaw_output, 0);
+                self.debug1.text = [NSString stringWithFormat:@"Moving by %.2f, %.2f, %.2f.", motion_vector[stage].x, motion_vector[stage].y, yaw_output];
             }
             
             // Use MoveVxVyYawrateVz(...) or MoveVxVyYawrateHeight(...)
